@@ -16,12 +16,32 @@ import type { ParsingError } from "./parser/error";
  *   - packages/babel-generators/src/generators
  */
 
-export type Comment = {
+type CommentBase = {
   type: "CommentBlock" | "CommentLine",
   value: string,
   start: number,
   end: number,
   loc: SourceLocation,
+};
+
+export type CommentBlock = CommentBase & {
+  type: "CommentBlock",
+};
+
+export type CommentLine = CommentBase & {
+  type: "CommentLine",
+};
+
+export type Comment = CommentBlock | CommentLine;
+
+// A whitespace containing comments
+export type CommentWhitespace = {
+  start: number,
+  end: number,
+  comments: Array<Comment>,
+  leadingNode: Node | null,
+  trailingNode: Node | null,
+  containerNode: Node | null,
 };
 
 export interface NodeBase {
@@ -960,7 +980,7 @@ export type TsTypeAnnotation = NodeBase & {
 };
 
 export type TypeParameterDeclarationBase = NodeBase & {
-  params: $ReadOnlyArray<TypeParameterBase>,
+  params: $ReadOnlyArray<TypeParameter | TsTypeParameter>,
 };
 
 export type TypeParameterDeclaration = TypeParameterDeclarationBase & {
@@ -973,17 +993,16 @@ export type TsTypeParameterDeclaration = TypeParameterDeclarationBase & {
   params: $ReadOnlyArray<TsTypeParameter>,
 };
 
-export type TypeParameterBase = NodeBase & {
-  name: string,
-};
-
-export type TypeParameter = TypeParameterBase & {
+export type TypeParameter = NodeBase & {
   type: "TypeParameter",
+  name: string,
   default?: TypeAnnotation,
 };
 
-export type TsTypeParameter = TypeParameterBase & {
+export type TsTypeParameter = NodeBase & {
   type: "TSTypeParameter",
+  // TODO(Babel-8): remove string type support
+  name: string | Identifier,
   constraint?: TsType,
   default?: TsType,
 };
