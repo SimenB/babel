@@ -86,7 +86,7 @@ jobs:
         run: |
           rm -rf ${{ steps.yarn1-cache-dir-path.outputs.dir }}/*babel*
           rm -rf ${{ steps.yarn-cache-dir-path.outputs.dir }}/*babel*
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4.1.7
         with:
           name: verdaccio-workspace
           path: /tmp
