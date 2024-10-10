@@ -1,11 +1,9 @@
 import {
   defineAliasedType,
   arrayOfType,
-  assertEach,
   assertNodeType,
   assertOneOf,
   assertValueType,
-  chain,
   validate,
   validateArrayOfType,
   validateOptional,
@@ -59,10 +57,7 @@ defineType("TSParameterProperty", {
       optional: true,
     },
     decorators: {
-      validate: chain(
-        assertValueType("array"),
-        assertEach(assertNodeType("Decorator")),
-      ),
+      validate: arrayOfType("Decorator"),
       optional: true,
     },
   },
@@ -97,7 +92,10 @@ defineType("TSQualifiedName", {
 const signatureDeclarationCommon = () => ({
   typeParameters: validateOptionalType("TSTypeParameterDeclaration"),
   [process.env.BABEL_8_BREAKING ? "params" : "parameters"]: validateArrayOfType(
-    ["ArrayPattern", "Identifier", "ObjectPattern", "RestElement"],
+    "ArrayPattern",
+    "Identifier",
+    "ObjectPattern",
+    "RestElement",
   ),
   [process.env.BABEL_8_BREAKING ? "returnType" : "typeAnnotation"]:
     validateOptionalType("TSTypeAnnotation"),
@@ -231,7 +229,7 @@ defineType("TSTypePredicate", {
   visitor: ["parameterName", "typeAnnotation"],
   builder: ["parameterName", "typeAnnotation", "asserts"],
   fields: {
-    parameterName: validateType(["Identifier", "TSThisType"]),
+    parameterName: validateType("Identifier", "TSThisType"),
     typeAnnotation: validateOptionalType("TSTypeAnnotation"),
     asserts: validateOptional(bool),
   },
@@ -241,7 +239,7 @@ defineType("TSTypeQuery", {
   aliases: ["TSType"],
   visitor: ["exprName", "typeParameters"],
   fields: {
-    exprName: validateType(["TSEntityName", "TSImportType"]),
+    exprName: validateType("TSEntityName", "TSImportType"),
     typeParameters: validateOptionalType("TSTypeParameterInstantiation"),
   },
 });
@@ -266,7 +264,7 @@ defineType("TSTupleType", {
   aliases: ["TSType"],
   visitor: ["elementTypes"],
   fields: {
-    elementTypes: validateArrayOfType(["TSType", "TSNamedTupleMember"]),
+    elementTypes: validateArrayOfType("TSType", "TSNamedTupleMember"),
   },
 });
 
@@ -357,11 +355,22 @@ defineType("TSIndexedAccessType", {
 
 defineType("TSMappedType", {
   aliases: ["TSType"],
-  visitor: ["typeParameter", "nameType", "typeAnnotation"],
-  builder: ["typeParameter", "typeAnnotation", "nameType"],
+  visitor: process.env.BABEL_8_BREAKING
+    ? ["key", "constraint", "nameType", "typeAnnotation"]
+    : ["typeParameter", "nameType", "typeAnnotation"],
+  builder: process.env.BABEL_8_BREAKING
+    ? ["key", "constraint", "nameType", "typeAnnotation"]
+    : ["typeParameter", "typeAnnotation", "nameType"],
   fields: {
+    ...(process.env.BABEL_8_BREAKING
+      ? {
+          key: validateType("Identifier"),
+          constraint: validateType("TSType"),
+        }
+      : {
+          typeParameter: validateType("TSTypeParameter"),
+        }),
     readonly: validateOptional(assertOneOf(true, false, "+", "-")),
-    typeParameter: validateType("TSTypeParameter"),
     optional: validateOptional(assertOneOf(true, false, "+", "-")),
     typeAnnotation: validateOptionalType("TSType"),
     nameType: validateOptionalType("TSType"),
@@ -414,14 +423,21 @@ defineType("TSLiteralType", {
   },
 });
 
-defineType("TSExpressionWithTypeArguments", {
+const expressionWithTypeArguments = {
   aliases: ["TSType"],
   visitor: ["expression", "typeParameters"],
   fields: {
     expression: validateType("TSEntityName"),
     typeParameters: validateOptionalType("TSTypeParameterInstantiation"),
   },
-});
+};
+
+if (process.env.BABEL_8_BREAKING) {
+  defineType("TSClassImplements", expressionWithTypeArguments);
+  defineType("TSInterfaceHeritage", expressionWithTypeArguments);
+} else {
+  defineType("TSExpressionWithTypeArguments", expressionWithTypeArguments);
+}
 
 defineType("TSInterfaceDeclaration", {
   // "Statement" alias prevents a semicolon from appearing after it in an export declaration.
@@ -431,7 +447,14 @@ defineType("TSInterfaceDeclaration", {
     declare: validateOptional(bool),
     id: validateType("Identifier"),
     typeParameters: validateOptionalType("TSTypeParameterDeclaration"),
-    extends: validateOptional(arrayOfType("TSExpressionWithTypeArguments")),
+    extends: validateOptional(
+      arrayOfType(
+        // @ts-ignore(Babel 7 vs Babel 8) Babel 7 AST
+        process.env.BABEL_8_BREAKING
+          ? "TSClassImplements"
+          : "TSExpressionWithTypeArguments",
+      ),
+    ),
     body: validateType("TSInterfaceBody"),
   },
 });
@@ -500,7 +523,7 @@ defineType("TSEnumDeclaration", {
 defineType("TSEnumMember", {
   visitor: ["id", "initializer"],
   fields: {
-    id: validateType(["Identifier", "StringLiteral"]),
+    id: validateType("Identifier", "StringLiteral"),
     initializer: validateOptionalType("Expression"),
   },
 });
@@ -511,8 +534,8 @@ defineType("TSModuleDeclaration", {
   fields: {
     declare: validateOptional(bool),
     global: validateOptional(bool),
-    id: validateType(["Identifier", "StringLiteral"]),
-    body: validateType(["TSModuleBlock", "TSModuleDeclaration"]),
+    id: validateType("Identifier", "StringLiteral"),
+    body: validateType("TSModuleBlock", "TSModuleDeclaration"),
   },
 });
 
@@ -544,10 +567,7 @@ defineType("TSImportEqualsDeclaration", {
   fields: {
     isExport: validate(bool),
     id: validateType("Identifier"),
-    moduleReference: validateType([
-      "TSEntityName",
-      "TSExternalModuleReference",
-    ]),
+    moduleReference: validateType("TSEntityName", "TSExternalModuleReference"),
     importKind: {
       validate: assertOneOf("type", "value"),
       optional: true,
@@ -598,24 +618,14 @@ defineType("TSTypeAnnotation", {
 defineType("TSTypeParameterInstantiation", {
   visitor: ["params"],
   fields: {
-    params: {
-      validate: chain(
-        assertValueType("array"),
-        assertEach(assertNodeType("TSType")),
-      ),
-    },
+    params: validateArrayOfType("TSType"),
   },
 });
 
 defineType("TSTypeParameterDeclaration", {
   visitor: ["params"],
   fields: {
-    params: {
-      validate: chain(
-        assertValueType("array"),
-        assertEach(assertNodeType("TSTypeParameter")),
-      ),
-    },
+    params: validateArrayOfType("TSTypeParameter"),
   },
 });
 

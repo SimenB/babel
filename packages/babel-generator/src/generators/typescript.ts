@@ -15,7 +15,7 @@ export function TSTypeParameterInstantiation(
   parent: t.Node,
 ): void {
   this.token("<");
-  this.printList(node.params, node, {});
+  this.printList(node.params, {});
   if (parent.type === "ArrowFunctionExpression" && node.params.length === 1) {
     this.token(",");
   }
@@ -316,12 +316,13 @@ function tsPrintBraced(printer: Printer, members: t.Node[], node: t.Node) {
 export function TSArrayType(this: Printer, node: t.TSArrayType) {
   this.print(node.elementType, true);
 
-  this.token("[]");
+  this.token("[");
+  this.token("]");
 }
 
 export function TSTupleType(this: Printer, node: t.TSTupleType) {
   this.token("[");
-  this.printList(node.elementTypes, node);
+  this.printList(node.elementTypes);
   this.token("]");
 }
 
@@ -356,7 +357,7 @@ function tsPrintUnionOrIntersectionType(
   node: t.TSUnionType | t.TSIntersectionType,
   sep: "|" | "&",
 ) {
-  printer.printJoin(node.types, node, {
+  printer.printJoin(node.types, {
     separator() {
       this.space();
       this.token(sep);
@@ -382,8 +383,7 @@ export function TSConditionalType(this: Printer, node: t.TSConditionalType) {
 }
 
 export function TSInferType(this: Printer, node: t.TSInferType) {
-  this.token("infer");
-  this.space();
+  this.word("infer");
   this.print(node.typeParameter);
 }
 
@@ -413,7 +413,7 @@ export function TSIndexedAccessType(
 }
 
 export function TSMappedType(this: Printer, node: t.TSMappedType) {
-  const { nameType, optional, readonly, typeParameter, typeAnnotation } = node;
+  const { nameType, optional, readonly, typeAnnotation } = node;
   this.token("{");
   this.space();
   if (readonly) {
@@ -423,15 +423,24 @@ export function TSMappedType(this: Printer, node: t.TSMappedType) {
   }
 
   this.token("[");
-  this.word(
-    !process.env.BABEL_8_BREAKING
-      ? (typeParameter.name as unknown as string)
-      : (typeParameter.name as unknown as t.Identifier).name,
-  );
+  if (process.env.BABEL_8_BREAKING) {
+    // @ts-ignore(Babel 7 vs Babel 8) Babel 8 AST shape
+    this.word(node.key.name);
+  } else {
+    // @ts-ignore(Babel 7 vs Babel 8) Babel 7 AST shape
+    this.word(node.typeParameter.name);
+  }
+
   this.space();
   this.word("in");
   this.space();
-  this.print(typeParameter.constraint);
+  if (process.env.BABEL_8_BREAKING) {
+    // @ts-ignore(Babel 7 vs Babel 8) Babel 8 AST shape
+    this.print(node.constraint);
+  } else {
+    // @ts-ignore(Babel 7 vs Babel 8) Babel 7 AST shape
+    this.print(node.typeParameter.constraint);
+  }
 
   if (nameType) {
     this.space();
@@ -466,13 +475,23 @@ export function TSLiteralType(this: Printer, node: t.TSLiteralType) {
   this.print(node.literal);
 }
 
-export function TSExpressionWithTypeArguments(
+export function TSClassImplements(
   this: Printer,
-  node: t.TSExpressionWithTypeArguments,
+  // TODO(Babel 8): Just use t.TSClassImplements
+  node: Extract<
+    t.Node,
+    { type: "TSClassImplements" | "TSExpressionWithTypeArguments" }
+  >,
 ) {
   this.print(node.expression);
   this.print(node.typeParameters);
 }
+
+export {
+  // TODO: Remove this in Babel 8
+  TSClassImplements as TSExpressionWithTypeArguments,
+  TSClassImplements as TSInterfaceHeritage,
+};
 
 export function TSInterfaceDeclaration(
   this: Printer,
@@ -491,7 +510,7 @@ export function TSInterfaceDeclaration(
     this.space();
     this.word("extends");
     this.space();
-    this.printList(extendz, node);
+    this.printList(extendz);
   }
   this.space();
   this.print(body);
@@ -526,10 +545,7 @@ function TSTypeExpression(
   node: t.TSAsExpression | t.TSSatisfiesExpression,
 ) {
   const { type, expression, typeAnnotation } = node;
-  const forceParens = expression.trailingComments?.some(
-    c => c.type === "CommentLine" || /[\r\n\u2028\u2029]/.test(c.value),
-  );
-  this.print(expression, true, undefined, forceParens);
+  this.print(expression, true);
   this.space();
   this.word(type === "TSAsExpression" ? "as" : "satisfies");
   this.space();

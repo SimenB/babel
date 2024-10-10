@@ -1,6 +1,6 @@
 {
   "name": "@babel/plugin-syntax-flow",
-  "version": "7.24.7",
+  "version": "7.25.7",
   "description": "Allow parsing of the flow syntax",
   "repository": {
     "type": "git",
@@ -33,7 +33,7 @@
     "BABEL_8_BREAKING": [
       {
         "engines": {
-          "node": "^18.20.0 || ^20.10.0 || >=21.0.0"
+          "node": "^18.20.0 || ^20.17.0 || >=22.8.0"
         }
       },
       {

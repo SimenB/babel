@@ -9,7 +9,7 @@ export type Plugin =
   | IF_BABEL_7<"classPrivateProperties">
   | IF_BABEL_7<"classProperties">
   | IF_BABEL_7<"classStaticBlock">
-  | "decimal"
+  | IF_BABEL_7<"decimal">
   | "decorators-legacy"
   | "deferredImportEvaluation"
   | "decoratorAutoAccessors"
@@ -25,10 +25,10 @@ export type Plugin =
   | "functionSent"
   | "importMeta"
   | "jsx"
+  | IF_BABEL_7<"jsonStrings">
   | IF_BABEL_7<"logicalAssignment">
-  | "importAssertions" // deprecated
-  | "importAttributes"
-  | "importReflection"
+  | IF_BABEL_7<"importAssertions">
+  | IF_BABEL_7<"importReflection">
   | "moduleBlocks"
   | IF_BABEL_7<"moduleStringNames">
   | IF_BABEL_7<"nullishCoalescingOperator">
@@ -68,7 +68,9 @@ export interface DecoratorsPluginOptions {
 }
 
 export interface PipelineOperatorPluginOptions {
-  proposal: "minimal" | "fsharp" | "hack" | "smart";
+  proposal: BABEL_8_BREAKING extends false
+    ? "minimal" | "fsharp" | "hack" | "smart"
+    : "fsharp" | "hack";
   topicToken?: "%" | "#" | "@@" | "^^" | "^";
 }
 
@@ -76,10 +78,14 @@ export interface RecordAndTuplePluginOptions {
   syntaxType: "bar" | "hash";
 }
 
-export interface FlowPluginOptions {
-  all?: boolean;
-  enums?: boolean;
-}
+export type FlowPluginOptions = BABEL_8_BREAKING extends true
+  ? {
+      all?: boolean;
+      enums?: boolean;
+    }
+  : {
+      all?: boolean;
+    };
 
 export interface TypeScriptPluginOptions {
   dts?: boolean;

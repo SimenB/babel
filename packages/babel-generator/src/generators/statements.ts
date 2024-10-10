@@ -70,7 +70,7 @@ export function ForStatement(this: Printer, node: t.ForStatement) {
   this.token("(");
 
   {
-    const exit = this.enterForStatementInit(true);
+    const exit = this.enterForStatementInit();
     this.tokenContext |= TokenContext.forHead;
     this.print(node.init);
     exit();
@@ -113,7 +113,7 @@ function ForXStatement(this: Printer, node: t.ForXStatement) {
   this.noIndentInnerCommentsHere();
   this.token("(");
   {
-    const exit = isForOf ? null : this.enterForStatementInit(true);
+    const exit = isForOf ? null : this.enterForStatementInit();
     this.tokenContext |= isForOf
       ? TokenContext.forOfHead
       : TokenContext.forInHead;
@@ -144,15 +144,10 @@ export function DoWhileStatement(this: Printer, node: t.DoWhileStatement) {
   this.semicolon();
 }
 
-function printStatementAfterKeyword(
-  printer: Printer,
-  node: t.Node,
-  parent: t.Node,
-  isLabel: boolean,
-) {
+function printStatementAfterKeyword(printer: Printer, node: t.Node) {
   if (node) {
     printer.space();
-    printer.printTerminatorless(node, parent, isLabel);
+    printer.printTerminatorless(node);
   }
 
   printer.semicolon();
@@ -160,22 +155,22 @@ function printStatementAfterKeyword(
 
 export function BreakStatement(this: Printer, node: t.ContinueStatement) {
   this.word("break");
-  printStatementAfterKeyword(this, node.label, node, true);
+  printStatementAfterKeyword(this, node.label);
 }
 
 export function ContinueStatement(this: Printer, node: t.ContinueStatement) {
   this.word("continue");
-  printStatementAfterKeyword(this, node.label, node, true);
+  printStatementAfterKeyword(this, node.label);
 }
 
 export function ReturnStatement(this: Printer, node: t.ReturnStatement) {
   this.word("return");
-  printStatementAfterKeyword(this, node.argument, node, false);
+  printStatementAfterKeyword(this, node.argument);
 }
 
 export function ThrowStatement(this: Printer, node: t.ThrowStatement) {
   this.word("throw");
-  printStatementAfterKeyword(this, node.argument, node, false);
+  printStatementAfterKeyword(this, node.argument);
 }
 
 export function LabeledStatement(this: Printer, node: t.LabeledStatement) {
@@ -232,7 +227,7 @@ export function SwitchStatement(this: Printer, node: t.SwitchStatement) {
   this.space();
   this.token("{");
 
-  this.printSequence(node.cases, node, {
+  this.printSequence(node.cases, {
     indent: true,
     addNewlines(leading, cas) {
       if (!leading && node.cases[node.cases.length - 1] === cas) return -1;
@@ -255,7 +250,7 @@ export function SwitchCase(this: Printer, node: t.SwitchCase) {
 
   if (node.consequent.length) {
     this.newline();
-    this.printSequence(node.consequent, node, { indent: true });
+    this.printSequence(node.consequent, { indent: true });
   }
 }
 
@@ -308,7 +303,7 @@ export function VariableDeclaration(
   //       bar = "foo";
   //
 
-  this.printList(node.declarations, node, {
+  this.printList(node.declarations, {
     separator: hasInits
       ? function (this: Printer) {
           this.token(",");
@@ -333,7 +328,7 @@ export function VariableDeclaration(
 export function VariableDeclarator(this: Printer, node: t.VariableDeclarator) {
   this.print(node.id);
   if (node.definite) this.token("!"); // TS
-  // @ts-expect-error todo(flow-ts) Property 'typeAnnotation' does not exist on type 'MemberExpression'.
+  // @ts-ignore(Babel 7 vs Babel 8) Property 'typeAnnotation' does not exist on type 'MemberExpression'.
   this.print(node.id.typeAnnotation);
   if (node.init) {
     this.space();

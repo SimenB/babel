@@ -1,6 +1,6 @@
 {
   "name": "@babel/plugin-transform-function-name",
-  "version": "7.25.1",
+  "version": "7.25.7",
   "description": "Apply ES2015 function.name semantics to all functions",
   "repository": {
     "type": "git",
@@ -36,7 +36,7 @@
     "BABEL_8_BREAKING": [
       {
         "engines": {
-          "node": "^18.20.0 || ^20.10.0 || >=21.0.0"
+          "node": "^18.20.0 || ^20.17.0 || >=22.8.0"
         }
       },
       {

@@ -1,6 +1,6 @@
 {
   "name": "@babel/helper-replace-supers",
-  "version": "7.25.0",
+  "version": "7.25.7",
   "description": "Helper function to replace supers",
   "repository": {
     "type": "git",
@@ -32,7 +32,7 @@
     "BABEL_8_BREAKING": [
       {
         "engines": {
-          "node": "^18.20.0 || ^20.10.0 || >=21.0.0"
+          "node": "^18.20.0 || ^20.17.0 || >=22.8.0"
         }
       },
       {

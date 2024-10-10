@@ -1,4 +1,6 @@
 import * as t from "@babel/types";
+import { IS_BABEL_8 } from "$repo-utils";
+
 import _Printer from "../lib/printer.js";
 const Printer = _Printer.default || _Printer;
 
@@ -9,8 +11,19 @@ describe("Printer", () => {
     });
 
     Object.keys(Printer.prototype).forEach(function (type) {
+      if (IS_BABEL_8()) {
+        if (type === "TSExpressionWithTypeArguments") return;
+      } else {
+        if (type === "TSClassImplements" || type === "TSInterfaceHeritage") {
+          return;
+        }
+      }
+
+      if (type === "DecimalLiteral") return;
+
       if (!/[A-Z]/.test(type[0])) return;
-      expect(t.VISITOR_KEYS[type]).toBeTruthy();
+
+      expect(t.VISITOR_KEYS).toHaveProperty(type);
     });
   });
 });

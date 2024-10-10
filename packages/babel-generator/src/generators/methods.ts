@@ -29,7 +29,7 @@ export function _params(
 }
 
 export function _parameters(this: Printer, parameters: t.Function["params"]) {
-  const exit = this.enterForStatementInit(false);
+  const exit = this.enterDelimited();
 
   const paramLength = parameters.length;
   for (let i = 0; i < paramLength; i++) {
@@ -48,7 +48,7 @@ export function _param(
   this: Printer,
   parameter: t.Identifier | t.RestElement | t.Pattern | t.TSParameterProperty,
 ) {
-  this.printJoin(parameter.decorators, parameter);
+  this.printJoin(parameter.decorators);
   this.print(parameter);
   if (
     // @ts-expect-error optional is not in TSParameterProperty

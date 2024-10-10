@@ -2,7 +2,7 @@
   "name": "@babel/plugin-transform-regenerator",
   "author": "The Babel Team (https://babel.dev/team)",
   "description": "Explode async and generator functions into a state machine.",
-  "version": "7.24.7",
+  "version": "7.25.7",
   "homepage": "https://babel.dev/docs/en/next/babel-plugin-transform-regenerator",
   "repository": {
     "type": "git",
@@ -32,7 +32,7 @@
     "BABEL_8_BREAKING": [
       {
         "engines": {
-          "node": "^18.20.0 || ^20.10.0 || >=21.0.0"
+          "node": "^18.20.0 || ^20.17.0 || >=22.8.0"
         }
       },
       {

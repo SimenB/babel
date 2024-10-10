@@ -3,6 +3,7 @@ import type { Loc } from "./buffer.ts";
 import * as n from "./node/index.ts";
 import type * as t from "@babel/types";
 import {
+  isExpression,
   isFunction,
   isStatement,
   isClassBody,
@@ -24,6 +25,10 @@ const SCIENTIFIC_NOTATION = /e/i;
 const ZERO_DECIMAL_INTEGER = /\.0+$/;
 const HAS_NEWLINE = /[\n\r\u2028\u2029]/;
 const HAS_NEWLINE_OR_BlOCK_COMMENT_END = /[\n\r\u2028\u2029]|\*\//;
+
+function commentIsNewline(c: t.Comment) {
+  return c.type === "CommentLine" || HAS_NEWLINE.test(c.value);
+}
 
 const { needsParens } = n;
 
@@ -121,12 +126,28 @@ class Printer {
   declare format: Format;
 
   inForStatementInit: boolean = false;
-  enterForStatementInit(val: boolean) {
-    const old = this.inForStatementInit;
-    if (old === val) return () => {};
-    this.inForStatementInit = val;
+  enterForStatementInit() {
+    if (this.inForStatementInit) return () => {};
+    this.inForStatementInit = true;
     return () => {
-      this.inForStatementInit = old;
+      this.inForStatementInit = false;
+    };
+  }
+
+  enterDelimited() {
+    const oldInForStatementInit = this.inForStatementInit;
+    const oldNoLineTerminatorAfterNode = this._noLineTerminatorAfterNode;
+    if (
+      oldInForStatementInit === false &&
+      oldNoLineTerminatorAfterNode === null
+    ) {
+      return () => {};
+    }
+    this.inForStatementInit = false;
+    this._noLineTerminatorAfterNode = null;
+    return () => {
+      this.inForStatementInit = oldInForStatementInit;
+      this._noLineTerminatorAfterNode = oldNoLineTerminatorAfterNode;
     };
   }
 
@@ -137,8 +158,8 @@ class Printer {
   _indent: number = 0;
   _indentRepeat: number = 0;
   _insideAux: boolean = false;
-  _parenPushNewlineState: { printed: boolean } | null = null;
   _noLineTerminator: boolean = false;
+  _noLineTerminatorAfterNode: t.Node | null = null;
   _printAuxAfterOnNextUserNode: boolean = false;
   _printedComments = new Set<t.Comment>();
   _endsWithInteger = false;
@@ -421,7 +442,6 @@ class Printer {
   }
 
   _append(str: string, maybeNewline: boolean): void {
-    this._maybeAddParen(str);
     this._maybeIndent(str.charCodeAt(0));
 
     this._buf.append(str, maybeNewline);
@@ -433,7 +453,6 @@ class Printer {
   }
 
   _appendChar(char: number): void {
-    this._maybeAddParenChar(char);
     this._maybeIndent(char);
 
     this._buf.appendChar(char);
@@ -445,7 +464,6 @@ class Printer {
   }
 
   _queue(char: number) {
-    this._maybeAddParenChar(char);
     this._maybeIndent(char);
 
     this._buf.queue(char);
@@ -474,87 +492,6 @@ class Printer {
     ) {
       return true;
     }
-  }
-
-  _maybeAddParenChar(char: number): void {
-    // see startTerminatorless() instance method
-    const parenPushNewlineState = this._parenPushNewlineState;
-    if (!parenPushNewlineState) return;
-
-    // This function does two things:
-    // - If needed, prints a parenthesis
-    // - If the currently printed string removes the need for the paren,
-    //   it resets the _parenPushNewlineState field.
-    //   Almost everything removes the need for a paren, except for
-    //   comments and whitespaces.
-
-    if (char === charCodes.space) {
-      // Whitespaces only, the parentheses might still be needed.
-      return;
-    }
-
-    // Check for newline or comment.
-    if (char !== charCodes.lineFeed) {
-      this._parenPushNewlineState = null;
-      return;
-    }
-
-    this.token("(");
-    this.indent();
-    parenPushNewlineState.printed = true;
-  }
-
-  _maybeAddParen(str: string): void {
-    // see startTerminatorless() instance method
-    const parenPushNewlineState = this._parenPushNewlineState;
-    if (!parenPushNewlineState) return;
-
-    // This function does two things:
-    // - If needed, prints a parenthesis
-    // - If the currently printed string removes the need for the paren,
-    //   it resets the _parenPushNewlineState field.
-    //   Almost everything removes the need for a paren, except for
-    //   comments and whitespaces.
-
-    const len = str.length;
-
-    let i;
-    for (i = 0; i < len && str.charCodeAt(i) === charCodes.space; i++) continue;
-    if (i === len) {
-      // Whitespaces only, the parentheses might still be needed.
-      return;
-    }
-
-    // Check for newline or comment.
-    const cha = str.charCodeAt(i);
-    if (cha !== charCodes.lineFeed) {
-      if (
-        // This is not a comment (it doesn't start with /)
-        cha !== charCodes.slash ||
-        // This is not a comment (it's a / operator)
-        i + 1 === len
-      ) {
-        // After a normal token, the parentheses aren't needed anymore
-        this._parenPushNewlineState = null;
-        return;
-      }
-
-      const chaPost = str.charCodeAt(i + 1);
-
-      if (chaPost === charCodes.asterisk) {
-        // This is a block comment
-        return;
-      } else if (chaPost !== charCodes.slash) {
-        // This is neither a block comment, nor a line comment.
-        // After a normal token, the parentheses aren't needed anymore
-        this._parenPushNewlineState = null;
-        return;
-      }
-    }
-
-    this.token("(");
-    this.indent();
-    parenPushNewlineState.printed = true;
   }
 
   catchUp(line: number) {
@@ -590,7 +527,7 @@ class Printer {
     return this._indentRepeat * this._indent;
   }
 
-  printTerminatorless(node: t.Node, parent: t.Node, isLabel: boolean) {
+  printTerminatorless(node: t.Node) {
     /**
      * Set some state that will be modified if a newline has been inserted before any
      * non-space characters.
@@ -606,24 +543,8 @@ class Printer {
      *
      *  `undefined` will be returned and not `foo` due to the terminator.
      */
-    if (isLabel) {
-      this._noLineTerminator = true;
-      this.print(node);
-    } else {
-      const terminatorState = {
-        printed: false,
-      };
-      this._parenPushNewlineState = terminatorState;
-      this.print(node);
-      /**
-       * Print an ending parentheses if a starting one has been printed.
-       */
-      if (terminatorState.printed) {
-        this.dedent();
-        this.newline();
-        this.token(")");
-      }
-    }
+    this._noLineTerminator = true;
+    this.print(node);
   }
 
   print(
@@ -632,7 +553,6 @@ class Printer {
     // trailingCommentsLineOffset also used to check if called from printJoin
     // it will be ignored if `noLineTerminatorAfter||this._noLineTerminator`
     trailingCommentsLineOffset?: number,
-    forceParens?: boolean,
   ) {
     if (!node) return;
 
@@ -676,7 +596,6 @@ class Printer {
 
     const parenthesized = node.extra?.parenthesized as boolean | undefined;
     let shouldPrintParens =
-      forceParens ||
       (parenthesized &&
         format.retainFunctionParens &&
         nodeType === "FunctionExpression") ||
@@ -705,11 +624,46 @@ class Printer {
       }
     }
 
-    let exitInForStatementInit;
+    let indentParenthesized = false;
+    if (
+      !shouldPrintParens &&
+      this._noLineTerminator &&
+      (node.leadingComments?.some(commentIsNewline) ||
+        (this.format.retainLines &&
+          node.loc &&
+          node.loc.start.line > this._buf.getCurrentLine()))
+    ) {
+      shouldPrintParens = true;
+      indentParenthesized = true;
+    }
+
+    let oldNoLineTerminatorAfterNode;
+    let oldInForStatementInitWasTrue;
+    if (!shouldPrintParens) {
+      noLineTerminatorAfter ||=
+        parent &&
+        this._noLineTerminatorAfterNode === parent &&
+        n.isLastChild(parent, node);
+      if (noLineTerminatorAfter) {
+        if (node.trailingComments?.some(commentIsNewline)) {
+          if (isExpression(node)) shouldPrintParens = true;
+        } else {
+          oldNoLineTerminatorAfterNode = this._noLineTerminatorAfterNode;
+          this._noLineTerminatorAfterNode = node;
+        }
+      }
+    }
+
     if (shouldPrintParens) {
       this.token("(");
+      if (indentParenthesized) this.indent();
       this._endsWithInnerRaw = false;
-      exitInForStatementInit = this.enterForStatementInit(false);
+      if (this.inForStatementInit) {
+        oldInForStatementInitWasTrue = true;
+        this.inForStatementInit = false;
+      }
+      oldNoLineTerminatorAfterNode = this._noLineTerminatorAfterNode;
+      this._noLineTerminatorAfterNode = null;
     }
 
     this._lastCommentLine = 0;
@@ -720,18 +674,19 @@ class Printer {
 
     this.exactSource(
       loc,
-      // We must use @ts-ignore because this error appears in VSCode but not
-      // when doing a full build?
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore https://github.com/microsoft/TypeScript/issues/58468
+      // @ts-expect-error Expected 1 arguments, but got 3.
       printMethod.bind(this, node, parent),
     );
 
     if (shouldPrintParens) {
       this._printTrailingComments(node, parent);
+      if (indentParenthesized) {
+        this.dedent();
+        this.newline();
+      }
       this.token(")");
       this._noLineTerminator = noLineTerminatorAfter;
-      exitInForStatementInit();
+      if (oldInForStatementInitWasTrue) this.inForStatementInit = true;
     } else if (noLineTerminatorAfter && !this._noLineTerminator) {
       this._noLineTerminator = true;
       this._printTrailingComments(node, parent);
@@ -743,6 +698,10 @@ class Printer {
     this._currentNode = parent;
     format.concise = oldConcise;
     this._insideAux = oldInAux;
+
+    if (oldNoLineTerminatorAfterNode !== undefined) {
+      this._noLineTerminatorAfterNode = oldNoLineTerminatorAfterNode;
+    }
 
     this._endsWithInnerRaw = false;
   }
@@ -789,7 +748,6 @@ class Printer {
       | t.StringLiteral
       | t.NumericLiteral
       | t.BigIntLiteral
-      | t.DecimalLiteral
       | t.DirectiveLiteral
       | t.JSXText,
   ): string | undefined {
@@ -806,7 +764,6 @@ class Printer {
 
   printJoin(
     nodes: Array<t.Node> | undefined | null,
-    parent: t.Node,
     opts: PrintJoinOptions = {},
   ) {
     if (!nodes?.length) return;
@@ -935,22 +892,18 @@ class Printer {
     this._indentInnerComments = false;
   }
 
-  printSequence(
-    nodes: t.Node[],
-    parent: t.Node,
-    opts: PrintSequenceOptions = {},
-  ) {
+  printSequence(nodes: t.Node[], opts: PrintSequenceOptions = {}) {
     opts.statement = true;
     opts.indent ??= false;
-    this.printJoin(nodes, parent, opts);
+    this.printJoin(nodes, opts);
   }
 
-  printList(items: t.Node[], parent: t.Node, opts: PrintListOptions = {}) {
+  printList(items: t.Node[], opts: PrintListOptions = {}) {
     if (opts.separator == null) {
       opts.separator = commaSeparator;
     }
 
-    this.printJoin(items, parent, opts);
+    this.printJoin(items, opts);
   }
 
   _printNewline(newLine: boolean, opts: AddNewlinesOptions) {
@@ -1048,22 +1001,14 @@ class Printer {
     const lastCharCode = this.getLastChar();
     if (
       lastCharCode !== charCodes.leftSquareBracket &&
-      lastCharCode !== charCodes.leftCurlyBrace
+      lastCharCode !== charCodes.leftCurlyBrace &&
+      lastCharCode !== charCodes.leftParenthesis
     ) {
       this.space();
     }
 
     let val;
     if (isBlockComment) {
-      const { _parenPushNewlineState } = this;
-      if (
-        _parenPushNewlineState?.printed === false &&
-        HAS_NEWLINE.test(comment.value)
-      ) {
-        this.token("(");
-        this.indent();
-        _parenPushNewlineState.printed = true;
-      }
       val = `/*${comment.value}*/`;
       if (this.format.indent.adjustMultilineComment) {
         const offset = comment.loc?.start.column;
