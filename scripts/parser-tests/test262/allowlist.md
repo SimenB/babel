@@ -6,6 +6,9 @@
 
 
 
-## 0 valid programs produced a parsing error
+## 4 valid programs produced a parsing error
 
-
+- [language/statements/class/elements/arrow-body-arguments-label.js(default)](../../../build/test262/test/language/statements/class/elements/arrow-body-arguments-label.js)
+- [language/statements/class/elements/arrow-body-arguments-label.js(strict mode)](../../../build/test262/test/language/statements/class/elements/arrow-body-arguments-label.js)
+- [language/statements/class/static-init-arguments-label.js(default)](../../../build/test262/test/language/statements/class/static-init-arguments-label.js)
+- [language/statements/class/static-init-arguments-label.js(strict mode)](../../../build/test262/test/language/statements/class/static-init-arguments-label.js)
